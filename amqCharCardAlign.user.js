@@ -8,7 +8,7 @@
 // @match        https://animemusicquiz.com/
 // @icon         https://www.google.com/s2/favicons?domain=animemusicquiz.com
 // @require      https://raw.githubusercontent.com/TheJoseph98/AMQ-Scripts/master/common/amqScriptInfo.js
-// @updateURL    https://github.com/Luminighty/AMQ-scripts/amqCharCardAlign.user.js
+// @updateURL    https://raw.githubusercontent.com/Luminighty/AMQ-scripts/main/amqCharCardAlign.user.js
 // @grant        none
 // ==/UserScript==
 
@@ -64,7 +64,7 @@
         }
         qpAvatarRow.style.height = `${(qpAvatarRow.parentNode.offsetHeight * 0.37) - 40}px`;
         qpAnimeContainer.style.marginBottom = "0px";
-    }
+    };
 
 
 })();
