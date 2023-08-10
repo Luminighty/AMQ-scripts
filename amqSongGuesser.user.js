@@ -2,8 +2,8 @@
 // @name         AMQ Song Guesser
 // @namespace    http://tampermonkey.net/
 // @version      0.1
-// @description  Zippybot
-// @author       Luminight
+// @description  try to take over the world!
+// @author       You
 // @match        https://animemusicquiz.com/
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=animemusicquiz.com
 // @grant        none
@@ -30,8 +30,31 @@
             e.target.innerText = "Save"
         }, 2000)
     })
+    document.addEventListener("keyup", (e) => {
+        if (e.key === "F2") answer();
+    })
     listenToNextVideo()
 })();
+
+function answer() {
+    if (!window["amq-guesser"].foundInJson) {
+        window.open(window["amq-guesser"].answer, "_blank")
+        return
+    }
+    const input = document.querySelector("#qpAnswerInput")
+    typeText(input, window["amq-guesser"].answer ?? "")
+}
+
+function typeText(element, text, offset = 1) {
+   if (offset > text.length)
+       return
+   element.dispatchEvent(new Event('input', {
+    'bubbles': true,
+    'cancelable': true
+   }));
+   element.value = text.slice(0, offset)
+   setTimeout(() => typeText(element, text, offset + 1), 20 + (Math.random() * 50))
+}
 
 function saveJsonPressed() {
     const input = document.body.querySelector("#amq-song-finder-add-json-textarea")
@@ -43,6 +66,7 @@ function saveJsonPressed() {
 }
 
 function listenToNextVideo() {
+    window["amq-guesser"] = {}
     const amogus = MoeVideoPlayer.prototype.getNextVideoId
     MoeVideoPlayer.prototype.getNextVideoId = function(...params) {
         const original = amogus.apply(this, ...params)
@@ -50,14 +74,18 @@ function listenToNextVideo() {
         const answer = localStorage.getItem(`amogus-${songLink}`)
         if (answer) {
             console.log(answer)
+            window["amq-guesser"].answer = answer;
+            window["amq-guesser"].foundInJson = true;
             return original
         }
 
         let video = "";
-        video = this.videoMap["openingsmoe"]?.["720"] ?? this.videoMap["openingsmoe"]?.["480"] ?? this.videoMap["catbox"]?.["720"] ?? this.videoMap["catbox"]?.["480"] ?? this.videoMap["catbox"]?.["0"]
+        video = this.videoMap["openingsmoe"]?.["480"] ?? this.videoMap["openingsmoe"]?.["720"] ?? this.videoMap["catbox"]?.["480"] ?? this.videoMap["catbox"]?.["720"] ?? this.videoMap["catbox"]?.["0"]
         if (video.startsWith("https://amq.catbox.video/"))
             video = `https://files.catbox.moe/${video.slice(25)}`
         console.log(video)
+        window["amq-guesser"].answer = video;
+        window["amq-guesser"].foundInJson = false;
         return original
     }
 }
