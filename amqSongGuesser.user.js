@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Song Guesser
 // @namespace    http://tampermonkey.net/
-// @version      0.1
+// @version      1.0
 // @description  try to take over the world!
 // @author       You
 // @match        https://animemusicquiz.com/
@@ -12,6 +12,8 @@
 // ==/UserScript==
 
 (async function() {
+    window["amq-guesser"] = {}
+    window["amq-guesser"].config = JSON.parse(localStorage.getItem("config") ?? '{ "enableChat": true, "autoGuess": false }')
     AMQ_addScriptData({
         name: "Song Guesser ඞ",
         author: "Luminight",
@@ -19,6 +21,9 @@
            <span>Paste JSON here:</span>
            <textarea rows="10" id="amq-song-finder-add-json-textarea"></textarea>
            <button style="background: none" id="amq-song-finder-add-json-button">Save</button>
+           <div><input type="checkbox" id="amq-song-finder-enable-chat"><label for="amq-song-finder-enable-chat">Chat</label></input></div>
+           <div><input type="checkbox" id="amq-song-finder-enable-autoguess"><label for="amq-song-finder-enable-autoguess">F2 Autoguess</label></input></div>
+           <div><input type="checkbox" id="amq-song-finder-enable-console"><label for="amq-song-finder-enable-console">Console Logging</label></input></div>
            `
     })
     document.body.querySelector("#amq-song-finder-add-json-button").addEventListener("click", (e) => {
@@ -31,7 +36,28 @@
         }, 2000)
     })
     document.addEventListener("keyup", (e) => {
-        // if (e.key === "F2") answer();
+        if (window["amq-guesser"].config.autoGuess && e.key === "F2") answer();
+    })
+    const enableChat = document.body.querySelector("#amq-song-finder-enable-chat")
+    enableChat.checked = window["amq-guesser"].config.enableChat
+    enableChat.addEventListener("change", (e) => {
+        window["amq-guesser"].config.enableChat = e.target.value
+        console.log(`Enable Chat: ${e.target.checked}`);
+        localStorage.setItem("config", JSON.stringify(window["amq-guesser"].config))
+    })
+    const autoGuess = document.body.querySelector("#amq-song-finder-enable-autoguess")
+    autoGuess.checked = window["amq-guesser"].config.autoGuess
+    document.body.querySelector("#amq-song-finder-enable-autoguess").addEventListener("change", (e) => {
+        window["amq-guesser"].config.autoGuess = e.target.checked
+        console.log(`Auto Guess: ${e.target.checked}`);
+        localStorage.setItem("config", JSON.stringify(window["amq-guesser"].config))
+    })
+    const consoleLogging = document.body.querySelector("#amq-song-finder-enable-console")
+    consoleLogging.checked = window["amq-guesser"].config.console
+    document.body.querySelector("#amq-song-finder-enable-console").addEventListener("change", (e) => {
+        window["amq-guesser"].config.console = e.target.checked
+        console.log(`Console: ${e.target.checked}`);
+        localStorage.setItem("config", JSON.stringify(window["amq-guesser"].config))
     })
     listenToNextVideo()
 })();
@@ -66,7 +92,6 @@ function saveJsonPressed() {
 }
 
 function listenToNextVideo() {
-    window["amq-guesser"] = {}
     const amogus = MoeVideoPlayer.prototype.getNextVideoId
     MoeVideoPlayer.prototype.getNextVideoId = function(...params) {
         const original = amogus.apply(this, ...params)
@@ -87,8 +112,10 @@ function listenToNextVideo() {
 }
 
 function setAnswer(answer, foundInJson = false) {
-    console.log(answer)
+    if (window["amq-guesser"].config.console)
+        console.log(answer)
     window["amq-guesser"].answer = answer;
-    window["amq-guesser"].foundInJson = true;
-    socialTab.chatBar.handleMessage("Jessica", answer, {customEmojis: [], emotes: []}, false)
+    window["amq-guesser"].foundInJson = foundInJson;
+    if (window["amq-guesser"].config.enableChat)
+        socialTab.chatBar.handleMessage("Jessica", answer, {customEmojis: [], emotes: []}, false)
 }
