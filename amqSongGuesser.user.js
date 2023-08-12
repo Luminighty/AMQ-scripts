@@ -17,6 +17,8 @@ const TYPE_SPEED_VARIANCE = 100;
 const FAST_TYPE_SPEED = 50;
 const ENABLE_CONFIG = true;	// 	true | false
 
+const GUESS_RATE = 0.65;
+
 
 let is_setup_finished = false;
 function setup() {
@@ -96,19 +98,30 @@ function configCheckbox(key) {
 	checkbox.checked = window["amq-guesser"].config[key]
 	checkbox.addEventListener("change", (e) => {
 		window["amq-guesser"].config[key] = e.target.checked
-		console.log(`${key}: ${e.target.checked}`);
+		log(`${key}: ${e.target.checked}`);
 		localStorage.setItem("config", JSON.stringify(window["amq-guesser"].config))
 	})
 }
 
-function answer(openIfNotFound = true, timeLeft = 2000) {
+async function answer(openIfNotFound = true, timeLeft = 2000) {
 	if (!window["amq-guesser"].foundInJson) {
 		if (openIfNotFound)
 			window.open(window["amq-guesser"].answer, "_blank")
 		return
 	}
+	let answer = window["amq-guesser"].answer ?? ""
+	answer = answer.toLowerCase().replace(/[^a-zA-Z0-9 ]/g, '')
+	const score = Math.random()
+	if (score > GUESS_RATE) {
+		if (score > (1 - GUESS_RATE) / 2) {
+			log("I forgot")
+			return
+		}
+		log("Almost...")
+		answer = answer.slice(0, Math.random() * (answer.length / 3))
+	}
 	const input = document.querySelector("#qpAnswerInput")
-	typeText(input, window["amq-guesser"].answer ?? "", timeLeft)
+	typeText(input, answer, timeLeft)
 }
 
 function typeText(element, text, timeLeft, offset = 1) {
@@ -162,8 +175,7 @@ function listenToNextVideo() {
 }
 
 function setAnswer(answer, foundInJson = false) {
-	if (window["amq-guesser"].config.console)
-		console.log(answer)
+	log(answer)
 	window["amq-guesser"].answer = answer;
 	window["amq-guesser"].foundInJson = foundInJson;
 	if (window["amq-guesser"].config.enableChat)
@@ -194,8 +206,7 @@ function saveSongs(songs, source) {
 	  .map(([url, name]) =>
 			localStorage.setItem(url, name)
 		).length
-	if (window["amq-guesser"].config.console)
-		console.log(`Learned ${learned} songs!${source && ` (${source})`}`);
+	log(`Learned ${learned} songs!${source && ` (${source})`}`);
 }
 
 window["exportLearnedSongs"] = function exportJsonData() {
@@ -275,8 +286,7 @@ function OnPlayNextSong({ time }) {
 	const MIN_GUESSING = (Math.min(time, 10) / 5) * 1000
 	const GUESS_VARIANCE = (Math.min(time, 10) / 2) * 1000 - MIN_GUESSING
 	const timeout = MIN_GUESSING + Math.random() * GUESS_VARIANCE;
-	if (window["amq-guesser"].config.console)
-		console.log(`Timeout: ${timeout}`);
+	log(`Timeout: ${timeout}`);
 	setTimeout(
 		() => answer(false, time * 1000 - timeout ),
 		timeout
@@ -290,8 +300,7 @@ function OnAnswerResults({ songInfo }) {
 	const catbox = songInfo.urlMap.catbox["0"];
 	if (localStorage.getItem(songKey(catbox)))
 		return;
-	if (window["amq-guesser"].config.console)
-		console.log(`Learning: ${animeName}`);
+	log(`Learning: ${animeName}`);
 	const arr = animeName.split(" ")
 	const query = `${arr[0]} ${arr[1] ?? ""} ${arr[2] ?? ""}`.trimEnd();
 	saveSongsFromQuery(query)
@@ -301,6 +310,11 @@ function delay(ms) {
 	return new Promise((res, rej) => {
 		setTimeout(() => res(), ms)
 	})
+}
+
+function log(...message) {
+	if (window["amq-guesser"].config.console)
+		console.log(...message);
 }
 
 window["LearnSongs"] = async function LearnSongs(skipLearnedSongs, animeNames) {
