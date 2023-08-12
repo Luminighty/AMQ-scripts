@@ -52,6 +52,7 @@ function setupConfig() {
 			<span>Paste JSON here:</span>
 			<textarea rows="10" id="amq-song-finder-add-json-textarea"></textarea>
 			<button style="background: none" id="amq-song-finder-add-json-button">Save</button>
+			<button style="background: none" id="amq-song-finder-export-button">Export</button>
 			${configCheckboxHtml("enableChat", "Chat")}
 			${configCheckboxHtml("autoGuess", "F2 Autoguess")}
 			${configCheckboxHtml("console", "Console Logging")}
@@ -62,6 +63,11 @@ function setupConfig() {
 		e.target.innerText = "Saving..."
 		saveJsonPressed()
 		setTimeout(() => { e.target.disabled = false; e.target.innerText = "Save"; }, 500)
+	})
+	document.body.querySelector("#amq-song-finder-export-button").addEventListener("click", (e) => {
+		e.target.disabled = true
+		window["exportLearnedSongs"]();
+		setTimeout(() => { e.target.disabled = false; }, 500)
 	})
 	configCheckbox("enableChat")
 	configCheckbox("autoGuess")
@@ -200,6 +206,15 @@ window["exportLearnedSongs"] = function exportJsonData() {
 			continue;
 		entries.push({ audio: key, animeENName: localStorage.getItem(key), susSource: true })
 	}
+
+	const data = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(entries))}`;
+	const link = document.createElement("a");
+	link.href = data;
+	const date = new Date(Date.now())
+	link.download = `songs-${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}.json`
+	link.click()
+	link.remove()
+	return entries
 }
 
 async function saveSongsFromQuery(query) {
