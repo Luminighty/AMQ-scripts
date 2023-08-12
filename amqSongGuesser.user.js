@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AMQ Song Guesser
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  try to take over the world, one nexus at a time!
 // @author       Luminight
 // @match        https://animemusicquiz.com/
@@ -31,7 +31,6 @@ function setup() {
 		if (window["amq-guesser"].config.autoGuess && e.key === "F2") answer();
 	})
 	listenToNextVideo()
-	// LumiBot()
 }
 
 let loadInterval = setInterval(() => {
@@ -109,7 +108,7 @@ function answer(openIfNotFound = true, timeLeft = 2000) {
 function typeText(element, text, timeLeft, offset = 1) {
 	if (offset > text.length) {
 		setTimeout(
-			() => element.dispatchEvent(new Event(("keypress", { which: 13, 'bubbles': true, 'cancelable': true}))), 
+			() => jQuery(element).trigger({ type: 'keypress', which: 13 }), 
 			Math.random() * timeLeft / 3
 		)
 		return
@@ -182,7 +181,7 @@ function saveJsonPressed() {
 	input.value = ""
 }
 
-function saveSongs(songs) {
+function saveSongs(songs, source) {
 	const learned = songs
 		.filter((song) => song.audio)
 		.map((song) => [song.susSource ? song.audio : songKey(song.audio), song.animeENName])
@@ -190,10 +189,10 @@ function saveSongs(songs) {
 			localStorage.setItem(url, name)
 		).length
 	if (window["amq-guesser"].config.console)
-		console.log(`Learned ${learned} songs!`);
+		console.log(`Learned ${learned} songs!${source && ` (${source})`}`);
 }
 
-function exportJsonData() {
+window["exportLearnedSongs"] = function exportJsonData() {
 	const entries = [];
 	for (let i = 0; i < localStorage.length; i++) {
 		const key = localStorage.key(i)
@@ -227,7 +226,7 @@ async function saveSongsFromQuery(query) {
 	})
 	const response = await fetch("https://anisongdb.com/api/search_request", {headers, body, method});
 	const songs = await response.json();
-	saveSongs(songs);
+	saveSongs(songs, query);
 }
 
 
@@ -278,5 +277,32 @@ function OnAnswerResults({ songInfo }) {
 		return;
 	if (window["amq-guesser"].config.console)
 		console.log(`Learning: ${animeName}`);
-	saveSongsFromQuery(animeName)
+	const arr = animeName.split(" ")
+	const query = `${arr[0]} ${arr[1] ?? ""} ${arr[2] ?? ""}`.trimEnd();
+	saveSongsFromQuery(query)
+}
+
+function delay(ms) {
+	return new Promise((res, rej) => {
+		setTimeout(() => res(), ms)
+	})
+}
+
+window["LearnSongs"] = async function LearnSongs(skipLearnedSongs, animeNames) {
+	const learned = {}
+	if (skipLearnedSongs) {
+		for (let i = 0; i < localStorage.length; i++) {
+			const key = localStorage.key(i);
+			learned[localStorage.getItem(key)] = true;
+		}
+	}
+	for (let anime of animeNames) {
+		if (learned[anime])
+			continue;
+		const arr = anime.split(" ")
+		const query = `${arr[0]} ${arr[1] ?? ""} ${arr[2] ?? ""}`.trimEnd();
+		await saveSongsFromQuery(query)
+		await delay(100)
+	}
+	console.log("I've learned so much!");
 }
