@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AniSong List Download
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  God I love Anime
 // @author       Luminight
 // @match        https://anisongdb.com/
@@ -12,7 +12,6 @@
 
 (function() {
     'use strict';
-
     setTimeout(setup, 500);
 })();
 
@@ -34,38 +33,20 @@ function setup() {
         if (isDownloading)
             return
         e.preventDefault();
-        isDownloading = true;
-        downloadLink().finally(() => {
-            isDownloading = false
-        })
+        const data = getData();
+        navigator.clipboard.writeText(data).then(() => window.open("https://ladist1.catbox.video/", "_blank"));
     })
     parent.insertBefore(link, parent.children[1])
 }
 
-async function download(url, filename) {
-    const data = await fetch(url, {mode: "no-cors"})
-    const blob = await data.blob()
-    const objectUrl = URL.createObjectURL(blob)
 
-    const link = document.createElement('a')
-
-    link.setAttribute('href', objectUrl)
-    link.setAttribute('download', filename)
-    link.style.display = 'none'
-
-    document.body.appendChild(link)
-
-    link.click()
-
-    document.body.removeChild(link)
-}
-
-function downloadLink() {
-    return Promise.all(
-        document.body.querySelector("app-song-table").__ngContext__[51].map((song) => {
-            download(song.audio, `${song.animeENName} - ${song.songType} - ${song.songName}.mp3`)
-        })
-    )
+function getData() {
+    return document.body
+        .querySelector("app-song-table")
+        .__ngContext__[51]
+        .filter((song) => song.audio)
+        .map((song) => `${song.audio} ${song.animeENName} - ${song.songType} - ${song.songName}.mp3`)
+        .join("\n")
 }
 
 function GM_addStyle(css) {
