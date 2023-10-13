@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AniSong List Download
 // @namespace    http://tampermonkey.net/
-// @version      1
+// @version      1.1
 // @description  God I love Anime
 // @author       Luminight
 // @match        https://anisongdb.com/
@@ -43,7 +43,7 @@ function setup() {
 }
 
 async function download(url, filename) {
-    const data = await fetch(url)
+    const data = await fetch(url, {mode: "no-cors"})
     const blob = await data.blob()
     const objectUrl = URL.createObjectURL(blob)
 
