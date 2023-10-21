@@ -17,6 +17,8 @@ const TYPE_SPEED_VARIANCE = 100;
 const FAST_TYPE_SPEED = 50;
 const ENABLE_CONFIG = true;	// 	true | false
 
+const GUESS_RATE = 1.1;
+
 
 let is_setup_finished = false;
 function setup() {
@@ -31,6 +33,7 @@ function setup() {
 		if (window["amq-guesser"].config.autoGuess && e.key === "F2") answer();
 	})
 	listenToNextVideo()
+	LumiBot()
 }
 
 let loadInterval = setInterval(() => {
@@ -53,9 +56,11 @@ function setupConfig() {
 			<textarea rows="10" id="amq-song-finder-add-json-textarea"></textarea>
 			<button style="background: none" id="amq-song-finder-add-json-button">Save</button>
 			<button style="background: none" id="amq-song-finder-export-button">Export</button>
+			<button style="background: none" id="amq-song-finder-clear-button">Clear Data</button>
 			${configCheckboxHtml("enableChat", "Chat")}
 			${configCheckboxHtml("autoGuess", "F2 Autoguess")}
 			${configCheckboxHtml("console", "Console Logging")}
+			${configCheckboxHtml("consoleGuessing", "Console Guessing")}
 			`
 	})
 	document.body.querySelector("#amq-song-finder-add-json-button").addEventListener("click", (e) => {
@@ -69,9 +74,28 @@ function setupConfig() {
 		window["exportLearnedSongs"]();
 		setTimeout(() => { e.target.disabled = false; }, 500)
 	})
+    let doubleClickClear = 0;
+	document.body.querySelector("#amq-song-finder-clear-button").addEventListener("click", (e) => {
+        if (!doubleClickClear) {
+            e.target.disabled = true
+            e.target.innerText = "Are you sure?"
+            setTimeout(() => {e.target.disabled = false}, 1000)
+            doubleClickClear = setTimeout(() => {
+                doubleClickClear = 0;
+                e.target.innerText = "Clear Data"
+            }, 5000)
+            return;
+        }
+        clearTimeout(doubleClickClear)
+        doubleClickClear = 0;
+        e.target.innnerText = "Clear Data"
+		e.target.disabled = true
+		window["deleteLearnedSongs"]();
+	})
 	configCheckbox("enableChat")
 	configCheckbox("autoGuess")
 	configCheckbox("console")
+	configCheckbox("consoleGuessing")
 }
 
 function loadConfig() {
@@ -96,25 +120,41 @@ function configCheckbox(key) {
 	checkbox.checked = window["amq-guesser"].config[key]
 	checkbox.addEventListener("change", (e) => {
 		window["amq-guesser"].config[key] = e.target.checked
-		console.log(`${key}: ${e.target.checked}`);
+		log(`${key}: ${e.target.checked}`);
 		localStorage.setItem("config", JSON.stringify(window["amq-guesser"].config))
 	})
 }
 
-function answer(openIfNotFound = true, timeLeft = 2000) {
+async function answer(openIfNotFound = true, timeLeft = 2000) {
 	if (!window["amq-guesser"].foundInJson) {
 		if (openIfNotFound)
 			window.open(window["amq-guesser"].answer, "_blank")
 		return
 	}
+	let answer = window["amq-guesser"].answer ?? ""
+	answer = answer.toLowerCase().replace(/[^a-zA-Z0-9 \-!:&]/g, ' ').trim()
+	while (answer.includes("  "))
+		answer = answer.replaceAll("  ", " ")
+	const score = Math.random()
+	if (score > GUESS_RATE) {
+		if (score > GUESS_RATE + (1 - GUESS_RATE) / 2) {
+			log("I forgot")
+			return
+		}
+		log("Almost...")
+		answer = answer.slice(0, Math.random() * (answer.length / 3))
+	}
 	const input = document.querySelector("#qpAnswerInput")
-	typeText(input, window["amq-guesser"].answer ?? "", timeLeft)
+	typeText(input, answer, timeLeft)
 }
 
 function typeText(element, text, timeLeft, offset = 1) {
 	if (offset > text.length) {
 		setTimeout(
-			() => jQuery(element).trigger({ type: 'keypress', which: 13 }), 
+			() => {
+				jQuery(element).trigger({ type: 'keydown', which: 40, code: "ArrowDown", key: "ArrowDown", keyCode: 40 })
+				jQuery(element).trigger({ type: 'keypress', which: 13 })
+			},
 			Math.random() * timeLeft / 3
 		)
 		return
@@ -142,7 +182,7 @@ function listenToNextVideo() {
 	const amogus = MoeVideoPlayer.prototype.getNextVideoId
 	MoeVideoPlayer.prototype.getNextVideoId = function(...params) {
 		const original = amogus.apply(this, ...params)
-		const songLink = `https://files.catbox.moe/${this.videoMap["catbox"]?.["0"].slice(25)}`
+		const songLink = this.videoMap["catbox"]?.["0"]
 		const answer = localStorage.getItem(songKey(songLink))
 		if (answer) {
 			setAnswer(answer, true)
@@ -154,20 +194,19 @@ function listenToNextVideo() {
 						this.videoMap["catbox"]?.["480"] ??
 						this.videoMap["catbox"]?.["720"] ??
 						this.videoMap["catbox"]?.["0"] ?? ""
-		if (video.startsWith("https://amq.catbox.video/"))
-			video = `https://files.catbox.moe/${video.slice(25)}`
 		setAnswer(video)
 		return original
 	}
 }
 
 function setAnswer(answer, foundInJson = false) {
-	if (window["amq-guesser"].config.console)
-		console.log(answer)
+	log(answer)
 	window["amq-guesser"].answer = answer;
 	window["amq-guesser"].foundInJson = foundInJson;
 	if (window["amq-guesser"].config.enableChat)
 		socialTab.chatBar.handleMessage("Jessica", answer, {customEmojis: [], emotes: []}, false)
+	if (window["amq-guesser"].config.consoleGuessing)
+        console.log("Next song: ", answer)
 }
 
 
@@ -176,7 +215,7 @@ function setAnswer(answer, foundInJson = false) {
 //	=============================
 
 function songKey(url) {
-	return `sus-${url.slice("https://files.catbox.moe/".length).split(".mp3")[0]}`
+	return `sus-${url.slice("https://ladist1.catbox.video/".length).split(".mp3")[0]}`
 }
 
 function saveJsonPressed() {
@@ -191,11 +230,10 @@ function saveSongs(songs, source) {
 	const learned = songs
 		.filter((song) => song.audio)
 		.map((song) => [song.susSource ? song.audio : songKey(song.audio), song.animeENName])
-	  .map(([url, name]) =>
+        .map(([url, name]) =>
 			localStorage.setItem(url, name)
 		).length
-	if (window["amq-guesser"].config.console)
-		console.log(`Learned ${learned} songs!${source && ` (${source})`}`);
+	log(`Learned ${learned} songs!${source && ` (${source})`}`);
 }
 
 window["exportLearnedSongs"] = function exportJsonData() {
@@ -215,6 +253,17 @@ window["exportLearnedSongs"] = function exportJsonData() {
 	link.click()
 	link.remove()
 	return entries
+}
+
+window["deleteLearnedSongs"] = function () {
+	const entries = [];
+	for (let i = 0; i < localStorage.length; i++) {
+		const key = localStorage.key(i)
+		if (!key.startsWith("sus-"))
+			continue;
+        localStorage.removeItem(key);
+	}
+    console.log("songs deleted ;-;")
 }
 
 async function saveSongsFromQuery(query) {
@@ -275,8 +324,7 @@ function OnPlayNextSong({ time }) {
 	const MIN_GUESSING = (Math.min(time, 10) / 5) * 1000
 	const GUESS_VARIANCE = (Math.min(time, 10) / 2) * 1000 - MIN_GUESSING
 	const timeout = MIN_GUESSING + Math.random() * GUESS_VARIANCE;
-	if (window["amq-guesser"].config.console)
-		console.log(`Timeout: ${timeout}`);
+	log(`Timeout: ${timeout}`);
 	setTimeout(
 		() => answer(false, time * 1000 - timeout ),
 		timeout
@@ -287,11 +335,10 @@ function OnAnswerResults({ songInfo }) {
 	if (!LUMIBOT_ISLEARNING)
 		return;
 	const animeName = songInfo.animeNames.english;
-	const catbox = songInfo.urlMap.catbox["0"];
+	const catbox = songInfo.videoTargetMap.catbox["0"];
 	if (localStorage.getItem(songKey(catbox)))
 		return;
-	if (window["amq-guesser"].config.console)
-		console.log(`Learning: ${animeName}`);
+	log(`Learning: ${animeName}`);
 	const arr = animeName.split(" ")
 	const query = `${arr[0]} ${arr[1] ?? ""} ${arr[2] ?? ""}`.trimEnd();
 	saveSongsFromQuery(query)
@@ -301,6 +348,11 @@ function delay(ms) {
 	return new Promise((res, rej) => {
 		setTimeout(() => res(), ms)
 	})
+}
+
+function log(...message) {
+	if (window["amq-guesser"].config.console)
+		console.log(...message);
 }
 
 window["LearnSongs"] = async function LearnSongs(skipLearnedSongs, animeNames) {
