@@ -6,6 +6,7 @@
 // @author       You
 // @match        https://erogemusicquiz.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=erogemusicquiz.com
+// @updateURL    https://raw.githubusercontent.com/Luminighty/AMQ-scripts/main/emq-avatar-switcher.user.js
 // @grant        none
 // ==/UserScript==
 
