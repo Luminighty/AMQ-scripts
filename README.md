@@ -15,7 +15,7 @@ const moveAmount = 40;
 # EMQ-scripts
 
 ## Avatar Switcher
-[Add this script](https://raw.githubusercontent.com/Luminighty/AMQ-scripts/main/emq-avatar-switcher.user.js)
+[Add this script](https://raw.githubusercontent.com/Luminighty/AMQ-scripts/main/emq-avatar-switcher.js)
 
 To set the avatar, just type this command in chat:
 ```
