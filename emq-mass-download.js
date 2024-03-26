@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EMQ Mass Download
 // @namespace    http://tampermonkey.net/
-// @version      2024-03-26
+// @version      1.0.1
 // @description  Download the search results from the library
 // @author       Luminight
 // @match        https://erogemusicquiz.com/*
