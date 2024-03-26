@@ -32,15 +32,15 @@ async function setup() {
 	item.innerHTML = `<a class="nav-link" tabindex="${nav.childElementCount}">Download</a>`
 	let disabled = false
 	item.addEventListener("click", () => {
-			if (disabled)
-					return
-			disabled = true
-			item.firstChild.classList.add("disabled")
-			downloadAll()
-					.finally(() => {
-							disabled = false
-							item.firstChild.classList.remove("disabled")
-					})
+		if (disabled)
+			return
+		disabled = true
+		item.firstChild.classList.add("disabled")
+		downloadAll()
+			.finally(() => {
+					disabled = false
+					item.firstChild.classList.remove("disabled")
+			})
 	})
 	nav.appendChild(item)
 }
@@ -48,9 +48,13 @@ async function setup() {
 async function downloadAll() {
 	const data = await Promise.all(
 			Array.from(document.querySelector(".songs").querySelectorAll(".song.card"))
-			.map(async (card) => [await getSongName(card), getVnDownloadUrl(card)])
+				.map(async (card) => [await getSongName(card), getVnDownloadUrl(card)])
 	)
-	await Promise.all(data.map(([{series, title, artist, type}, url]) => download(url, `${series} - ${title} - ${artist} - ${type}`)))
+	await Promise.all(
+		data
+			.filter(([_, url]) => url)
+			.map(([{series, title, artist, type}, url]) => download(url, `${series} - ${title} - ${artist} - ${type}`))
+	)
 }
 
 
@@ -64,7 +68,7 @@ async function getSongName(card) {
 	const describedBy = await find(() => songSource.parentElement.getAttribute("aria-describedby"), 10)
 	const popup = await find(() => document.querySelector(`#${describedBy}`), 10)
 
-    const type = card.querySelector(".songSourceSongType span").innerText
+  const type = card.querySelector(".songSourceSongType span").innerText
 	const series = popup.innerText
 	const title = card.querySelector(".songLatinTitle.card-title").innerText
 	const artist = card.querySelector(".songArtistsTitle").parentElement.innerText
@@ -81,8 +85,8 @@ async function getSongName(card) {
 function getVnDownloadUrl(card) {
 	const li = Array.from(card.querySelectorAll(".songInfoCardSongLinksSoundLink"))
 			 .filter((link) => link.innerText.includes("✓"))
-			 .filter((link) => link.querySelector("a").href.includes("erogemusicquiz"))?.[0]
-	return li.querySelector("a").href
+			 .filter((link) => (link.querySelector("a")?.href ?? "").includes("erogemusicquiz"))?.[0]
+	return li?.querySelector("a")?.href
 }
 
 function getExtension(url) {
