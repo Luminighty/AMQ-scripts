@@ -17,7 +17,6 @@ window.navigation.addEventListener("navigate", () => setup())
 
 async function setup() {
 	await delay(100)
-	console.log("setup", location.pathname)
 	if (!location.pathname.startsWith("/LibraryPage"))
 			return
 
@@ -94,7 +93,6 @@ function getExtension(url) {
 
 async function download(url, filename) {
 	const ext = getExtension(url)
-	console.log({url, filename, ext })
 	const data = await fetch(url, {mode: "no-cors"})
 	const blob = await data.blob()
 	const objectUrl = URL.createObjectURL(blob)
