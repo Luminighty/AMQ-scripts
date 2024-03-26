@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         EMQ Mass Download
 // @namespace    http://tampermonkey.net/
-// @version      2024-03-25
+// @version      2024-03-26
 // @description  Download the search results from the library
 // @author       Luminight
 // @match        https://erogemusicquiz.com/*
@@ -49,7 +49,7 @@ async function downloadAll() {
 			Array.from(document.querySelector(".songs").querySelectorAll(".song.card"))
 			.map(async (card) => [await getSongName(card), getVnDownloadUrl(card)])
 	)
-	await Promise.all(data.map(([{series, title, artist}, url]) => download(url, `${series} - ${title}`)))
+	await Promise.all(data.map(([{series, title, artist, type}, url]) => download(url, `${series} - ${title} - ${artist} - ${type}`)))
 }
 
 
@@ -63,6 +63,7 @@ async function getSongName(card) {
 	const describedBy = await find(() => songSource.parentElement.getAttribute("aria-describedby"), 10)
 	const popup = await find(() => document.querySelector(`#${describedBy}`), 10)
 
+    const type = card.querySelector(".songSourceSongType span").innerText
 	const series = popup.innerText
 	const title = card.querySelector(".songLatinTitle.card-title").innerText
 	const artist = card.querySelector(".songArtistsTitle").parentElement.innerText
@@ -73,7 +74,7 @@ async function getSongName(card) {
 		'cancelable': true
 	}))
 
-	return { series, title, artist }
+	return { series, title, artist, type }
 }
 
 function getVnDownloadUrl(card) {
@@ -108,23 +109,6 @@ async function download(url, filename) {
 	link.click()
 
 	document.body.removeChild(link)
-}
-
-async function delay(ms) {
-	return new Promise((res) => setTimeout(() => res(), ms))
-}
-
-async function find(cb, timeout=100) {
-	let maxIter = 100
-	while (maxIter > 0) {
-			maxIter--
-			const result = cb();
-			if (result) {
-					if (!Array.isArray(result) || result.length > 0)
-							return result;
-			}
-			await delay(timeout)
-	}
 }
 
 async function delay(ms) {
