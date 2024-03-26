@@ -33,3 +33,5 @@ Upcoming features:
   - manually setting the avatar
 - Create a separate framework script for chat commands/custom script settings
 
+## Mass Download
+[Add this script](https://raw.githubusercontent.com/Luminighty/AMQ-scripts/main/emq-mass-download.js)
