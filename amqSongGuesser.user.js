@@ -17,7 +17,8 @@ const TYPE_SPEED_VARIANCE = 100;
 const FAST_TYPE_SPEED = 50;
 const ENABLE_CONFIG = true;	// 	true | false
 
-const GUESS_RATE = 0.65;
+let GUESS_RATE = 0.9;
+let GUESS_RATE_ALMOST = 0.95
 
 
 let is_setup_finished = false;
@@ -37,7 +38,8 @@ function setup() {
 }
 
 let loadInterval = setInterval(() => {
-    if (!document.getElementById("loadingScreen").classList.contains("hidden"))
+		const loadingScreen = document.getElementById("loadingScreen")
+    if (!loadingScreen || !loadingScreen.classList.contains("hidden"))
         return
     setup()
     clearInterval(loadInterval)
@@ -54,7 +56,7 @@ function setupConfig() {
 		description: `
 			<span>Paste JSON here:</span>
 			<textarea rows="10" id="amq-song-finder-add-json-textarea"></textarea>
-			<button style="background: none" id="amq-song-finder-add-json-button">Save</button>
+			<button style="background: none" id="amq-song-finder-add-json-button">Save JSON</button>
 			<button style="background: none" id="amq-song-finder-export-button">Export</button>
 			<button style="background: none" id="amq-song-finder-clear-button">Clear Data</button>
 			${configCheckboxHtml("enableChat", "Chat")}
@@ -63,7 +65,10 @@ function setupConfig() {
 			${configCheckboxHtml("consoleGuessing", "Console Guessing")}
 			`
 	})
-	document.body.querySelector("#amq-song-finder-add-json-button").addEventListener("click", (e) => {
+	const input = document.body.querySelector("#amq-song-finder-add-json-textarea")
+	const addJsonButton = document.body.querySelector("#amq-song-finder-add-json-button")
+	input.addEventListener("change", (_) => addJsonButton.disabled = input.value.length == 0)
+	addJsonButton.addEventListener("click", (e) => {
 		e.target.disabled = true
 		e.target.innerText = "Saving..."
 		saveJsonPressed()
@@ -88,7 +93,7 @@ function setupConfig() {
         }
         clearTimeout(doubleClickClear)
         doubleClickClear = 0;
-        e.target.innnerText = "Clear Data"
+        e.target.innerText = "Clear Data"
 		e.target.disabled = true
 		window["deleteLearnedSongs"]();
 	})
@@ -125,37 +130,58 @@ function configCheckbox(key) {
 	})
 }
 
+function getAutoComplete() {
+	return quiz.answerInput.typingInput.autoCompleteController.awesomepleteInstance
+}
+
 async function answer(openIfNotFound = true, timeLeft = 2000) {
 	if (!window["amq-guesser"].foundInJson) {
 		if (openIfNotFound)
 			window.open(window["amq-guesser"].answer, "_blank")
 		return
 	}
-	let answer = window["amq-guesser"].answer ?? ""
-	answer = answer.toLowerCase().replace(/[^a-zA-Z0-9 \-!:&]/g, ' ').trim()
+	let answer = window["amq-guesser"].answer
+	answer = answer.toLowerCase().replace(/[^a-zA-Z0-9 '\-!:&]/g, '').trim()
 	while (answer.includes("  "))
 		answer = answer.replaceAll("  ", " ")
+	answer = answer.trim()
 	const score = Math.random()
-	if (score > GUESS_RATE) {
-		if (score > GUESS_RATE + (1 - GUESS_RATE) / 2) {
-			log("I forgot")
+	if (score >= GUESS_RATE) {
+		if (score >= GUESS_RATE_ALMOST) {
+			log(`I forgot (${score} > ${GUESS_RATE})`)
 			return
 		}
-		log("Almost...")
-		answer = answer.slice(0, Math.random() * (answer.length / 3))
+		log(`Almost... (${GUESS_RATE_ALMOST} > ${score} > ${GUESS_RATE})`)
+		answer = answer.slice(0, Math.floor(Math.random() * (answer.length / 3)))
 	}
 	const input = document.querySelector("#qpAnswerInput")
 	typeText(input, answer, timeLeft)
 }
 
+let autocompleteLastSuggestion = null
 function typeText(element, text, timeLeft, offset = 1) {
+	const autoComplete = getAutoComplete()
+	const isAutocompleteUpdated = autocompleteLastSuggestion !== autoComplete?.suggestions?.[0]
+	if (offset > 6 && autoComplete.opened && autoComplete?.suggestions.length === 1 && isAutocompleteUpdated) offset = text.length + 1
 	if (offset > text.length) {
+		if (autoComplete?.suggestions[0]?.value && isAutocompleteUpdated)
+			element.value = autoComplete.suggestions[0].value
+		autocompleteLastSuggestion = autoComplete?.suggestions[0]
+		element.dispatchEvent(new Event('input', {
+			'bubbles': true,
+			'cancelable': true
+		}));
+		element.dispatchEvent(new Event('keypress', {
+			'bubbles': true,
+			'cancelable': true
+		}));
 		setTimeout(
 			() => {
 				jQuery(element).trigger({ type: 'keydown', which: 40, code: "ArrowDown", key: "ArrowDown", keyCode: 40 })
 				jQuery(element).trigger({ type: 'keypress', which: 13 })
+				setTimeout(() => autoComplete.close(), 100);
 			},
-			Math.random() * timeLeft / 3
+			Math.random() * Math.min(timeLeft / 3, 5000)
 		)
 		return
 	}
@@ -177,32 +203,44 @@ function typeText(element, text, timeLeft, offset = 1) {
 	)
 }
 
+function getVideoMapLink(videoMap) {
+	return videoMap["catbox"]?.["0"] ??
+		videoMap["catbox"]?.["480"] ??
+		videoMap["catbox"]?.["720"] ?? null
+}
+
+function onNextVideoInfo(data) {
+	const videoMap = data.videoInfo.videoMap
+	const songLink = videoResolver.formatUrl(getVideoMapLink(videoMap))
+	const answer = getSong(songKey(songLink))
+	if (answer) {
+		setAnswer(answer, true)
+		return
+	}
+
+	let video = videoMap["openingsmoe"]?.["480"] ??
+					videoMap["openingsmoe"]?.["720"] ??
+					videoMap["catbox"]?.["480"] ??
+					videoMap["catbox"]?.["720"] ??
+					videoMap["catbox"]?.["0"] ?? ""
+	setAnswer(videoResolver.formatUrl(video))
+}
 
 function listenToNextVideo() {
-	const amogus = MoeVideoPlayer.prototype.getNextVideoId
-	MoeVideoPlayer.prototype.getNextVideoId = function(...params) {
-		const original = amogus.apply(this, ...params)
-		const songLink = this.videoMap["catbox"]?.["0"]
-		const answer = localStorage.getItem(songKey(songLink))
-		if (answer) {
-			setAnswer(answer, true)
-			return original
-		}
-
-		let video = this.videoMap["openingsmoe"]?.["480"] ??
-						this.videoMap["openingsmoe"]?.["720"] ??
-						this.videoMap["catbox"]?.["480"] ??
-						this.videoMap["catbox"]?.["720"] ??
-						this.videoMap["catbox"]?.["0"] ?? ""
-		setAnswer(video)
-		return original
-	}
+	socket._socket.on("command", function (payload) {
+		if (payload.command !== "quiz next video info")
+			return
+		onNextVideoInfo(payload.data)
+	})
 }
+
 
 function setAnswer(answer, foundInJson = false) {
 	log(answer)
-	window["amq-guesser"].answer = answer;
-	window["amq-guesser"].foundInJson = foundInJson;
+	window["amq-guesser"].answer = window["amq-guesser"].nextAnswer?.answer;
+	window["amq-guesser"].foundInJson = window["amq-guesser"].nextAnswer?.foundInJson;
+	window["amq-guesser"].nextAnswer = {answer, foundInJson};
+
 	if (window["amq-guesser"].config.enableChat)
 		socialTab.chatBar.handleMessage("Jessica", answer, {customEmojis: [], emotes: []}, false)
 	if (window["amq-guesser"].config.consoleGuessing)
@@ -214,16 +252,55 @@ function setAnswer(answer, foundInJson = false) {
 //	=========== SETUP ===========
 //	=============================
 
-function songKey(url) {
-	return `sus-${url.slice("https://ladist1.catbox.video/".length).split(".mp3")[0]}`
+let hasUnsavedSongs = false
+const songData = {}
+
+function storageKey() {
+	return `sus-data`
+}
+function storeSongData() {
+	const data = compressSongs()
+	localStorage.setItem(storageKey(), JSON.stringify(data));
+}
+function loadStorageSongData() {
+	const data = localStorage.getItem(storageKey())
+	if (!data) return;
+	window["setSongData"](decompressSongs(JSON.parse(data)))
+}
+window["storeSongData"] = storeSongData
+window["loadStorageSongData"] = loadStorageSongData
+
+function songKey(url) { 
+	if (url.includes("https://"))
+		return new URL(url).pathname.slice(1).split(".mp3")[0]
+	return url.split(".mp3")[0]
+}
+
+function getSong(key) { return songData[key] }
+function setSong(key, answer) { songData[key] = answer; hasUnsavedSongs = true; }
+function compressSongs() {
+	const data = {};
+	Object.entries(songData).forEach(([key, anime]) => {
+		if (!data[anime]) data[anime] = []
+		data[anime].push(key)
+	})
+	return data
+}
+function decompressSongs(data) {
+	const decompressed = {}
+	Object.entries(data).forEach(([anime, keys]) => {
+		keys.forEach((key) => decompressed[key] = anime)
+	})
+	return decompressed
 }
 
 function saveJsonPressed() {
 	const input = document.body.querySelector("#amq-song-finder-add-json-textarea")
-	const songs = JSON.parse(input.value)
+	const songs = decompressSongs(JSON.parse(input.value))
+	window["setSongData"](songs)
 	console.log(songs)
-	saveSongs(songs);
 	input.value = ""
+	storeSongData()
 }
 
 function saveSongs(songs, source) {
@@ -231,21 +308,16 @@ function saveSongs(songs, source) {
 		.filter((song) => song.audio)
 		.map((song) => [song.susSource ? song.audio : songKey(song.audio), song.animeENName])
         .map(([url, name]) =>
-			localStorage.setItem(url, name)
+			setSong(url, name)
 		).length
 	log(`Learned ${learned} songs!${source && ` (${source})`}`);
+	storeSongData()
 }
 
 window["exportLearnedSongs"] = function exportJsonData() {
-	const entries = [];
-	for (let i = 0; i < localStorage.length; i++) {
-		const key = localStorage.key(i)
-		if (!key.startsWith("sus-"))
-			continue;
-		entries.push({ audio: key, animeENName: localStorage.getItem(key), susSource: true })
-	}
+	const entries = localStorage.getItem(storageKey())
 
-	const data = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(entries))}`;
+	const data = `data:text/json;charset=utf-8,${encodeURIComponent(entries)}`;
 	const link = document.createElement("a");
 	link.href = data;
 	const date = new Date(Date.now())
@@ -256,14 +328,11 @@ window["exportLearnedSongs"] = function exportJsonData() {
 }
 
 window["deleteLearnedSongs"] = function () {
-	const entries = [];
-	for (let i = 0; i < localStorage.length; i++) {
-		const key = localStorage.key(i)
-		if (!key.startsWith("sus-"))
-			continue;
-        localStorage.removeItem(key);
-	}
-    console.log("songs deleted ;-;")
+	localStorage.removeItem(storageKey())
+	Object.keys(songData).forEach((key) => {
+		delete songData[key]
+	})
+  console.log("songs deleted ;-;")
 }
 
 async function saveSongsFromQuery(query) {
@@ -299,6 +368,7 @@ let LUMIBOT_ISLEARNING = true
 function LumiBot() {
 	const playNextSongListener = new Listener("lumi play next song", OnPlayNextSong)
 	const answerResultsListener = new Listener("lumi answer results", OnAnswerResults)
+	loadStorageSongData()
 	document.body.addEventListener("keyup", (e) => {
 		if (e.key === "F9") {
 			LUMIBOT_ISLEARNING = !LUMIBOT_ISLEARNING
@@ -306,15 +376,15 @@ function LumiBot() {
 		}
 		if (e.key !== "F10")
 			return
-		if (!socket.listners["play next song"] || !socket.listners["answer results"])
-			return
-		if (!socket.listners["play next song"].includes(playNextSongListener)) {
-			socket.listners["play next song"].push(playNextSongListener)
-			socket.listners["answer results"].push(answerResultsListener)
+		LUMIBOT_ENABLED = !LUMIBOT_ENABLED
+		
+		if (LUMIBOT_ENABLED) {
 			console.log("enabled");
+			socket.addListerner("play next song", playNextSongListener)
+			socket.addListerner("answer results", answerResultsListener)
 		} else {
-			socket.listners["play next song"].splice(socket.listners["play next song"].indexOf(playNextSongListener), 1)
-			socket.listners["answer results"].splice(socket.listners["answer results"].indexOf(answerResultsListener), 1)
+			socket.removeListener("play next song", playNextSongListener)
+			socket.removeListener("answer results", answerResultsListener)
 			console.log("disabled");
 		}
 	})
@@ -324,9 +394,9 @@ function OnPlayNextSong({ time }) {
 	const MIN_GUESSING = (Math.min(time, 10) / 5) * 1000
 	const GUESS_VARIANCE = (Math.min(time, 10) / 2) * 1000 - MIN_GUESSING
 	const timeout = MIN_GUESSING + Math.random() * GUESS_VARIANCE;
-	log(`Timeout: ${timeout}`);
+	log(`Timeout: ${Math.floor(timeout)}ms`);
 	setTimeout(
-		() => answer(false, time * 1000 - timeout ),
+		() => answer(false, time * 1000 - timeout - 500),
 		timeout
 	)
 }
@@ -335,9 +405,18 @@ function OnAnswerResults({ songInfo }) {
 	if (!LUMIBOT_ISLEARNING)
 		return;
 	const animeName = songInfo.animeNames.english;
-	const catbox = songInfo.videoTargetMap.catbox["0"];
-	if (localStorage.getItem(songKey(catbox)))
+	const catbox = videoResolver.formatUrl(getVideoMapLink(songInfo.videoTargetMap));
+	const key = songKey(catbox)
+	if (getSong(key)) {
+		// Check if it's shorter
+		const oldSong = getSong(key)
+		if (animeName.length < oldSong.length) {
+			log(`Found shorter name "${oldSong}" -> "${animeName}"`)
+			setSong(key, animeName)
+			storeSongData()
+		}
 		return;
+	}
 	log(`Learning: ${animeName}`);
 	const arr = animeName.split(" ")
 	const query = `${arr[0]} ${arr[1] ?? ""} ${arr[2] ?? ""}`.trimEnd();
@@ -356,20 +435,35 @@ function log(...message) {
 }
 
 window["LearnSongs"] = async function LearnSongs(skipLearnedSongs, animeNames) {
-	const learned = {}
-	if (skipLearnedSongs) {
-		for (let i = 0; i < localStorage.length; i++) {
-			const key = localStorage.key(i);
-			learned[localStorage.getItem(key)] = true;
+	let i = 0
+	let lastSaved = i
+
+	animeNames.sort()
+	animeNames = animeNames.filter(Boolean)
+	animeNames = animeNames.filter((anime) => !skipLearnedSongs || !Object.values(songData).includes(anime))
+	animeNames = animeNames.map((anime) => {
+		const arr = anime.split(" ")
+		const query = `${arr[0]}`.trimEnd().toLowerCase();
+		return query
+	})
+	animeNames = animeNames.filter((anime, index) => animeNames.lastIndexOf(anime) == index)
+
+	for (let anime of animeNames) {
+		i++
+		await saveSongsFromQuery(anime)
+		await delay(100)
+		if (i % 10 === 0)
+			log(`Learning status ${i}/${animeNames.length}`)
+		if (i - lastSaved > 20) {
+			lastSaved = i
+			storeSongData()
 		}
 	}
-	for (let anime of animeNames) {
-		if (learned[anime])
-			continue;
-		const arr = anime.split(" ")
-		const query = `${arr[0]} ${arr[1] ?? ""} ${arr[2] ?? ""}`.trimEnd();
-		await saveSongsFromQuery(query)
-		await delay(100)
-	}
 	console.log("I've learned so much!");
+	storeSongData()
 }
+
+window["getSongData"] = function getSongData() { return songData }
+window["setSongData"] = function setSongData(data) { Object.entries(data).forEach(([key, value]) => songData[key] = value) }
+window["setGuessRate"] = function (value) { GUESS_RATE = value; }
+window["setGuessRateAlmost"] = function (value) { GUESS_RATE_ALMOST = value; }
