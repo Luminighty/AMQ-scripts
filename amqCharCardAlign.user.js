@@ -20,7 +20,8 @@
 	const moveAmount = 40;
 
     let loadInterval = setInterval(() => {
-        if (document.getElementById("loadingScreen").classList.contains("hidden")) {
+        const loadingScreen = document.getElementById("loadingScreen")
+        if (loadingScreen && loadingScreen.classList?.contains("hidden")) {
             
             AMQ_addScriptData({
                 name: "Character Card Align",

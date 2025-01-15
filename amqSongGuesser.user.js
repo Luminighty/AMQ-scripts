@@ -12,13 +12,13 @@
 // ==/UserScript==
 
 
-const TYPE_SPEED_MIN = 50;
+const TYPE_SPEED_MIN = 30;
 const TYPE_SPEED_VARIANCE = 100;
 const FAST_TYPE_SPEED = 50;
 const ENABLE_CONFIG = true;	// 	true | false
 
-let GUESS_RATE = 0.9;
-let GUESS_RATE_ALMOST = 0.95
+let GUESS_RATE = 0.95;
+let GUESS_RATE_ALMOST = 0.98
 
 
 let is_setup_finished = false;
@@ -135,13 +135,16 @@ function getAutoComplete() {
 }
 
 async function answer(openIfNotFound = true, timeLeft = 2000) {
+	if (quiz.onLastSong)
+		setAnswer(null)
+
 	if (!window["amq-guesser"].foundInJson) {
 		if (openIfNotFound)
 			window.open(window["amq-guesser"].answer, "_blank")
 		return
 	}
 	let answer = window["amq-guesser"].answer
-	answer = answer.toLowerCase().replace(/[^a-zA-Z0-9 '\-!:&]/g, '').trim()
+	answer = answer.toLowerCase().replace(/[^a-zA-Z0-9 '\-!:&;]/g, ' ').trim()
 	while (answer.includes("  "))
 		answer = answer.replaceAll("  ", " ")
 	answer = answer.trim()
@@ -151,8 +154,8 @@ async function answer(openIfNotFound = true, timeLeft = 2000) {
 			log(`I forgot (${score} > ${GUESS_RATE})`)
 			return
 		}
-		log(`Almost... (${GUESS_RATE_ALMOST} > ${score} > ${GUESS_RATE})`)
-		answer = answer.slice(0, Math.floor(Math.random() * (answer.length / 3)))
+		answer = answer.slice(0, Math.max(6, Math.floor(Math.random() * (answer.length / 3))))
+		log(`Almost... (${GUESS_RATE_ALMOST} > ${score} > ${GUESS_RATE}) => ${answer}`)
 	}
 	const input = document.querySelector("#qpAnswerInput")
 	typeText(input, answer, timeLeft)
@@ -199,7 +202,7 @@ function typeText(element, text, timeLeft, offset = 1) {
 	const timeout = Math.min(TYPE_SPEED_MIN + (Math.random() * TYPE_SPEED_VARIANCE), timeoutUnit - (Math.random() * FAST_TYPE_SPEED))
 	setTimeout(
 		() => typeText(element, text, timeLeft - timeout, offset + 1),
-	 	Math.max(timeout, 30)
+	 	Math.max(timeout, 10)
 	)
 }
 
@@ -236,10 +239,14 @@ function listenToNextVideo() {
 
 
 function setAnswer(answer, foundInJson = false) {
-	log(answer)
 	window["amq-guesser"].answer = window["amq-guesser"].nextAnswer?.answer;
 	window["amq-guesser"].foundInJson = window["amq-guesser"].nextAnswer?.foundInJson;
 	window["amq-guesser"].nextAnswer = {answer, foundInJson};
+
+	if (!answer && quiz.onLastSong) // Step the answers
+		return
+
+	log(answer)
 
 	if (window["amq-guesser"].config.enableChat)
 		socialTab.chatBar.handleMessage("Jessica", answer, {customEmojis: [], emotes: []}, false)
@@ -401,6 +408,17 @@ function OnPlayNextSong({ time }) {
 	)
 }
 
+function getShortestName(old, songInfo) {
+	let shortest = old
+	for (const name of songInfo.altAnimeNames)
+		if (shortest.length > name.length)
+			shortest = name
+	for (const name of songInfo.altAnimeNamesAnswers)
+		if (shortest.length > name.length)
+			shortest = name
+	return shortest
+}
+
 function OnAnswerResults({ songInfo }) {
 	if (!LUMIBOT_ISLEARNING)
 		return;
@@ -410,9 +428,10 @@ function OnAnswerResults({ songInfo }) {
 	if (getSong(key)) {
 		// Check if it's shorter
 		const oldSong = getSong(key)
-		if (animeName.length < oldSong.length) {
-			log(`Found shorter name "${oldSong}" -> "${animeName}"`)
-			setSong(key, animeName)
+		const shortestName = getShortestName(oldSong, songInfo)
+		if (shortestName.length < oldSong.length) {
+			log(`Found shorter name "${oldSong}" -> "${shortestName}"`)
+			setSong(key, shortestName)
 			storeSongData()
 		}
 		return;
