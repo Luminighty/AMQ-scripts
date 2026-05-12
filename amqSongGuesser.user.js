@@ -165,7 +165,13 @@ let autocompleteLastSuggestion = null
 function typeText(element, text, timeLeft, offset = 1) {
 	const autoComplete = getAutoComplete()
 	const isAutocompleteUpdated = autocompleteLastSuggestion !== autoComplete?.suggestions?.[0]
-	if (offset > 6 && autoComplete.opened && autoComplete?.suggestions.length === 1 && isAutocompleteUpdated) offset = text.length + 1
+	const isAutoCompleteCorrect = autoComplete?.suggestions?.[0] === text
+    const doAutoComplete = offset >= Math.min(6, text.length) &&
+          autoComplete.opened &&
+          autoComplete?.suggestions.length === 1 &&
+          isAutocompleteUpdated && isAutoCompleteCorrect
+	if (doAutoComplete)
+        offset = text.length + 1
 	if (offset > text.length) {
 		if (autoComplete?.suggestions[0]?.value && isAutocompleteUpdated)
 			element.value = autoComplete.suggestions[0].value
@@ -277,7 +283,7 @@ function loadStorageSongData() {
 window["storeSongData"] = storeSongData
 window["loadStorageSongData"] = loadStorageSongData
 
-function songKey(url) { 
+function songKey(url) {
 	if (url.includes("https://"))
 		return new URL(url).pathname.slice(1).split(".mp3")[0]
 	return url.split(".mp3")[0]
@@ -384,7 +390,7 @@ function LumiBot() {
 		if (e.key !== "F10")
 			return
 		LUMIBOT_ENABLED = !LUMIBOT_ENABLED
-		
+
 		if (LUMIBOT_ENABLED) {
 			console.log("enabled");
 			socket.addListerner("play next song", playNextSongListener)
